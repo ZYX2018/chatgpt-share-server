@@ -13,6 +13,17 @@ import (
 // 分页返回车辆列表
 func CarPage(r *ghttp.Request) {
 	// ctx := r.GetCtx()
+	oauthUserInfo := GetZyxOnlineUser(r)
+	if oauthUserInfo == nil {
+		r.Response.WriteJson(g.Map{
+			"code":    401,
+			"message": "Unauthorized",
+		})
+		return
+	}
+	roleCode := oauthUserInfo.CurrentRole.RoleCode
+	roleMark := oauthUserInfo.CurrentRole.Mark
+	oauthUserId := GenState(oauthUserInfo.ID)
 	reqJson, err := r.GetJson()
 	if err != nil {
 		r.Response.WriteJson(g.Map{
@@ -54,6 +65,9 @@ func CarPage(r *ghttp.Request) {
 				"size":  size,
 				"total": count,
 			},
+			"oauthUserId": oauthUserId,
+			"roleCode":    roleCode,
+			"roleMark":    roleMark,
 		},
 		"notice": notice,
 	})

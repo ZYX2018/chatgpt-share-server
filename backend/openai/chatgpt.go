@@ -30,7 +30,7 @@ func init() {
 	group.GET("/status", Status)
 	group.GET("/endpoint", EndPoint)
 	group.POST("/carpage", CarPage)
-
+	group.ALL("/authorize", Authorize)
 	// 列表
 	// group.GET("/list", List)
 

@@ -19,10 +19,10 @@ database:
   default: # 数据源名称,当不指定数据源时 default 为默认数据源
     type: "mysql" # 数据库类型
     host: "127.0.0.1" # 数据库地址
-    port: "3306" # 数据库端口
+    port: "3308" # 数据库端口
     user: "root" # 数据库用户名
-    pass: "123456" # 数据库密码
-    name: "cool" # 数据库名称
+    pass: "Zhangx@mysql281619" # 数据库密码
+    name: "chat-gpt-share-server" # 数据库名称
     charset: "utf8mb4" # 数据库编码
     timezone: "Asia/Shanghai" # 数据库时区
     debug: true # 是否开启调试模式，开启后会打印SQL日志
@@ -32,6 +32,7 @@ database:
 redis:
   cool:
     address: "127.0.0.1:6379"
+    pass: "Zhangx@redis281619"
     db: 0
 
 
@@ -63,10 +64,17 @@ CHATPROXY: "https://chatproxy-dev.closeai.biz"
 # 接入网关的authkey
 AUTHKEY: "xyhelper"
 # 免费模式下的oauth地址
-# OAUTH_URL: "http://127.0.0.1:8001/auth/oauthfree"
+OAUTH_URL: "http://localhost:8999/oauth-center/oauth2/gptVeryToken"
 # 是否关闭会话漫游 true 关闭 false 开启
 DISALLOW_ROAM: false
 # 对话响应成功回调地址
 # ConversationNotifyUrl: ""
 # 文件服务器
 FILE_SERVER: "https://files.oaiusercontent.com"
+
+ZYX_OAUTH_AUTHORIZE_URL: "http://localhost:3001/#/authorize"
+ZYX_OAUTH_CALLBACK_URL: "http://localhost:8001/authorize"
+ZYX_OAUTH_URL: "http://localhost:8999/oauth-center/oauth2"
+ZYX_OAUTH_CLIENT_ID: "70099e60-f615-46ec-a8ac-230e59e78211"
+ZYX_OAUTH_CLIENT_PUBLIC_KEY: "044dd3d83e286a167a0cdff7c6194d1decbacc26f61474becdbf78f29c70734b09ff38779e9dce2c50d3f570c88a624060142c01986efca3d82878546e6bb996f6"
+ZYX_OAUTH_CLIENT_SECRET: "GyT81x7*2xR557Vg53u~*^$7%z38@JrqDP7uHI"
