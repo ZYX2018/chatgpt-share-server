@@ -81,7 +81,7 @@ func CarPage(r *ghttp.Request) {
 	roleExpireTime := oauthUserInfo.CurrentRole.ExpireTime
 	var leastTime int64
 	if roleExpireTime == "" {
-		leastTime = ParseTime("2025-05-27 17:37:00").Sub(time.Now()).Milliseconds()
+		leastTime = 0
 	} else {
 		leastTime = ParseTime(roleExpireTime).Sub(time.Now()).Milliseconds()
 	}
