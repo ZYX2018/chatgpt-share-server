@@ -2,6 +2,10 @@ package openai
 
 import (
 	"backend/modules/chatgpt/model"
+	"bytes"
+	"encoding/json"
+	"github.com/gogf/gf/v2/os/gctx"
+	"time"
 
 	"github.com/cool-team-official/cool-admin-go/cool"
 	baseservice "github.com/cool-team-official/cool-admin-go/modules/base/service"
@@ -9,6 +13,56 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/text/gstr"
 )
+
+func ActiveByCode(r *ghttp.Request) {
+	reqJson, err := r.GetJson()
+	if err != nil {
+		r.Response.WriteJson(g.Map{
+			"message": "Unable to parse request body.",
+		})
+		return
+	}
+	code := reqJson.Get("code").Int()
+	token, err := GetAccessToken(r, []string{"/api/CharacterRedemptionCode/activeVIPByRedemptionCode"})
+	if err != nil {
+		r.Response.WriteJson(g.Map{
+			"code":    401,
+			"message": "Unauthorized",
+		})
+		return
+	}
+	headerMap := map[string]string{
+		"Authorization": token,
+	}
+	argMap := g.Map{
+		"code": code,
+	}
+	jsonBytes, err := json.Marshal(argMap)
+	if err != nil {
+		r.Response.WriteJson(g.Map{
+			"message": "Unable to parse code",
+		})
+		return
+	}
+	ctx := gctx.GetInitCtx()
+	zyx_gateway_url := g.Cfg().MustGetWithEnv(ctx, "ZYX_GATEWAY").String()
+	result, err := DoPost(zyx_gateway_url+"/user-resource-server/api/CharacterRedemptionCode/activeVIPByRedemptionCode", bytes.NewBuffer(jsonBytes), headerMap)
+	if err != nil || result == nil || !result.IsSuccess {
+		errorMessage := "授权服务连接失败"
+		if result != nil {
+			errorMessage = result.Message
+		}
+		r.Response.WriteJson(g.Map{
+			"message": errorMessage,
+		})
+		return
+	}
+
+	r.Response.WriteJson(g.Map{
+		"code":    200,
+		"message": "激活成功",
+	})
+}
 
 // 分页返回车辆列表
 func CarPage(r *ghttp.Request) {
@@ -23,6 +77,15 @@ func CarPage(r *ghttp.Request) {
 	}
 	roleCode := oauthUserInfo.CurrentRole.RoleCode
 	roleMark := oauthUserInfo.CurrentRole.Mark
+	accountBalance := oauthUserInfo.AccountBalance
+	roleExpireTime := oauthUserInfo.CurrentRole.ExpireTime
+	var leastTime int64
+	if roleExpireTime == "" {
+		leastTime = ParseTime("2025-05-27 17:37:00").Sub(time.Now()).Milliseconds()
+	} else {
+		leastTime = ParseTime(roleExpireTime).Sub(time.Now()).Milliseconds()
+	}
+	invitationCode := oauthUserInfo.InvitationCode
 	oauthUserId := GenState(oauthUserInfo.ID)
 	reqJson, err := r.GetJson()
 	if err != nil {
@@ -65,9 +128,13 @@ func CarPage(r *ghttp.Request) {
 				"size":  size,
 				"total": count,
 			},
-			"oauthUserId": oauthUserId,
-			"roleCode":    roleCode,
-			"roleMark":    roleMark,
+			"oauthUserId":    oauthUserId,
+			"roleCode":       roleCode,
+			"roleMark":       roleMark,
+			"roleExpireTime": roleExpireTime,
+			"accountBalance": accountBalance,
+			"invitationCode": invitationCode,
+			"leastTime":      leastTime,
 		},
 		"notice": notice,
 	})

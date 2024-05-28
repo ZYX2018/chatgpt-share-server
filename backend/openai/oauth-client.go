@@ -46,16 +46,18 @@ type GroupModel struct {
 	Description string `json:"description"`
 }
 type IDToken struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	LoginName   string      `json:"loginName"`
-	CurrentRole RoleModel   `json:"currentRole"`
-	Roles       []RoleModel `json:"roles"`
-	Group       GroupModel  `json:"group"`
-	PictureURL  string      `json:"pictureURL"`
-	Device      string      `json:"device"`
-	Fingerprint string      `json:"fingerprint"`
-	ExpireTime  string      `json:"expireTime"`
+	ID             string      `json:"id"`
+	Name           string      `json:"name"`
+	LoginName      string      `json:"loginName"`
+	AccountBalance string      `json:"accountBalance"`
+	InvitationCode string      `json:"invitationCode"`
+	CurrentRole    RoleModel   `json:"currentRole"`
+	Roles          []RoleModel `json:"roles"`
+	Group          GroupModel  `json:"group"`
+	PictureURL     string      `json:"pictureURL"`
+	Device         string      `json:"device"`
+	Fingerprint    string      `json:"fingerprint"`
+	ExpireTime     string      `json:"expireTime"`
 }
 type TokenVO struct {
 	OpenID       string `json:"openid"`
@@ -96,6 +98,47 @@ type AuthenticatedUser struct {
 	RefreshToken string `json:"refreshToken"`
 	AccessToken  string `json:"accessToken"`
 	IdToken      string `json:"idToken"`
+}
+
+func GetAccessToken(r *ghttp.Request, scopes []string) (string, error) {
+	idToken := GetZyxOnlineUser(r)
+	if idToken == nil {
+		return "", errors.New("未登录")
+	}
+	openid := r.Cookie.Get("zyx_open_id")
+	ctx := gctx.GetInitCtx()
+	oauthUrl := g.Cfg().MustGetWithEnv(ctx, "ZYX_OAUTH_URL").String()
+	callBackUrl := g.Cfg().MustGetWithEnv(ctx, "ZYX_OAUTH_CALLBACK_URL").String()
+	clientId := g.Cfg().MustGetWithEnv(ctx, "ZYX_OAUTH_CLIENT_ID").String()
+	publicKey := g.Cfg().MustGetWithEnv(ctx, "ZYX_OAUTH_CLIENT_PUBLIC_KEY").String()
+	Secret := g.Cfg().MustGetWithEnv(ctx, "ZYX_OAUTH_CLIENT_SECRET").String()
+	sm2, err := NewSM2AlgorithmByPublicKey(publicKey)
+	if err != nil {
+		return "", err
+	}
+	arg := &GetAccessTokenArg{}
+	arg.AuthorizeCode = openid.String()
+	arg.RedirectURI = callBackUrl
+	arg.ClientID = clientId
+	arg.State = randomState()
+	xorState, err := actualState(arg.State)
+	if err != nil {
+		return "", err
+	}
+	preEncStr := Secret + "." + xorState
+	arg.ClientSecret = sm2.EncryptString(preEncStr)
+	arg.GrantType = "client_credentials"
+	arg.Nonce = randomState()
+	arg.Scopes = scopes
+	jsonBytes, err := json.Marshal(arg)
+	if err != nil {
+		return "", err
+	}
+	tokenVo, err := doPost(oauthUrl+"/access_token", bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return "", err
+	}
+	return tokenVo.AccessToken, nil
 }
 
 func Authorize(r *ghttp.Request) {
@@ -158,7 +201,7 @@ func validAndCacheTokenVO(tokenvo *TokenVO) error {
 		return err
 	}
 
-	if parseTime(idSm2JwtToken.Payload.ExpireTime).Before(time.Now()) {
+	if ParseTime(idSm2JwtToken.Payload.ExpireTime).Before(time.Now()) {
 		return errors.New("id token过期")
 	}
 	accessSm2JwtToken, err := InitSM2JWTTokenByToken(accessToken, &AccessToken{}, sm2)
@@ -166,7 +209,7 @@ func validAndCacheTokenVO(tokenvo *TokenVO) error {
 		return err
 	}
 
-	if parseTime(accessSm2JwtToken.Payload.ExpireTime).Before(time.Now()) {
+	if ParseTime(accessSm2JwtToken.Payload.ExpireTime).Before(time.Now()) {
 		return errors.New("access token过期")
 	}
 	refreshSm2JwtToken, err := InitSM2JWTTokenByToken(refreshTokenStr, &RefreshToken{}, sm2)
@@ -174,7 +217,7 @@ func validAndCacheTokenVO(tokenvo *TokenVO) error {
 		return nil
 	}
 
-	if parseTime(refreshSm2JwtToken.Payload.ExpireTime).Before(time.Now()) {
+	if ParseTime(refreshSm2JwtToken.Payload.ExpireTime).Before(time.Now()) {
 		return errors.New("refresh token过期")
 	}
 	return nil
@@ -227,19 +270,19 @@ func getTokenByCode(code string) (*TokenVO, error) {
 	if err != nil {
 		return nil, err
 	}
-	return doPost(oauthUrl+"/access_token", bytes.NewBuffer(jsonBytes)), nil
+	return doPost(oauthUrl+"/access_token", bytes.NewBuffer(jsonBytes))
 }
 
 // RefreshTokenArg 结构体对应于Java中的RefreshTokenArg类
 type RefreshTokenArg struct {
 	RefreshToken string   `json:"refreshToken" validate:"required"`
-	ClientID     string   `json:"客户端id" validate:"required"`
-	ClientSecret string   `json:"客户端密码"`
-	GrantType    string   `json:"响应类别（access_code,client_security）" validate:"required"`
-	RedirectURI  string   `json:"重定向地址"`
-	Scopes       []string `json:"授权范围"`
-	State        string   `json:"客户端状态码" validate:"required"`
-	Nonce        string   `json:"安全随机码" validate:"required"`
+	ClientID     string   `json:"clientId" validate:"required"`
+	ClientSecret string   `json:"clientSecret"`
+	GrantType    string   `json:"grantType" validate:"required"`
+	RedirectURI  string   `json:"redirectUri"`
+	Scopes       []string `json:"scopes"`
+	State        string   `json:"state" validate:"required"`
+	Nonce        string   `json:"nonce" validate:"required"`
 	JWT          string   `json:"jwt"`
 }
 
@@ -272,43 +315,43 @@ func refreshToken(refreshToken string) (*TokenVO, error) {
 	if err != nil {
 		return nil, err
 	}
-	return doPost(oauthUrl+"/refresh_token", bytes.NewBuffer(jsonBytes)), nil
+	return doPost(oauthUrl+"/refresh_token", bytes.NewBuffer(jsonBytes))
 
 }
 
-func doPost(url string, playLoad io.Reader) *TokenVO {
+func doPost(url string, playLoad io.Reader) (*TokenVO, error) {
 
 	req, err := http.NewRequest("POST", url, playLoad)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil || resp.StatusCode != 200 {
-		panic(err)
+		return nil, err
 	}
 	oauthResponseStr := string(body)
 	var vo ResultVO
 	err = json.Unmarshal([]byte(oauthResponseStr), &vo)
 	if err != nil || !vo.IsSuccess {
 		log.Println(oauthResponseStr)
-		panic("oauth响应失败")
+		return nil, errors.New(oauthResponseStr)
 	}
 	dataByte, err := json.Marshal(vo.Data)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	var tokenVO TokenVO
 	err = json.Unmarshal(dataByte, &tokenVO)
-	return &tokenVO
+	return &tokenVO, nil
 }
 
 func randomState() string {
@@ -394,17 +437,18 @@ func GetZyxOnlineUser(r *ghttp.Request) *IDToken {
 	if err != nil || token == nil || token.Payload == nil {
 		return nil
 	}
-
-	if parseTime(token.Payload.ExpireTime).Before(time.Now()) {
+	idExpireTime := ParseTime(token.Payload.ExpireTime)
+	nowTime := time.Now()
+	if idExpireTime.Before(nowTime) {
 		return nil
 	}
 	return token.Payload
 }
 
-func parseTime(timeStr string) time.Time {
+func ParseTime(timeStr string) time.Time {
 	layout := "2006-01-02 15:04:05.999"
 	// 解析日期时间字符串
-	expireTime, err := time.Parse(layout, timeStr)
+	expireTime, err := time.ParseInLocation(layout, timeStr, time.Local)
 	if err != nil {
 		panic(err)
 	}
