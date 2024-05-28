@@ -70,7 +70,9 @@ DISALLOW_ROAM: false
 # 对话响应成功回调地址
 # ConversationNotifyUrl: ""
 # 文件服务器
-FILE_SERVER: "https://files.oaiusercontent.com"
+# FILESERVER: "https://files.oaiusercontent.com"
+ASSET_PREFIX: https://oaistatic-cdn2.closeai.biz
+
 ZYX_GATEWAY: "http://localhost:8999"
 ZYX_OAUTH_AUTHORIZE_URL: "http://localhost:3001/#/authorize"
 ZYX_OAUTH_CALLBACK_URL: "http://localhost:8001/authorize"
